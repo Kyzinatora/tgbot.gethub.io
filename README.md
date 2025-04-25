@@ -1,5 +1,3 @@
-# tgbot.gethub.io
-<!DOCTYPE html>
 <html>
 <head>
   <title>Навигатор аудиторий</title>
