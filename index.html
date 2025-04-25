@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Навигатор аудиторий</title>
+  <style>
+    #map-container { width: 100%; overflow: auto; }
+    #floor-plan { width: 100%; }
+    .room:hover { opacity: 0.8; cursor: pointer; }
+    .highlight { fill: yellow !important; stroke: red !important; stroke-width: 3px !important; }
+    .button-group {
+      display: inline-block;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <select id="faculty-select">
+    <option value="Mehmat">Мехмат</option>
+    <option value="Fvt">ФВТ</option>
+  </select>
+  <select id="floor-select"></select>
+  <select id="room-select"></select>
+  <div class="button-group">
+    <button id="dinning-button" style="display: none;">Столовая</button>
+    <button id="dean-button" style="display: none;">Деканат</button>
+    <button id="wardrobe-button" style="display: none;">Гардеробная</button>
+    <button id="toilet-button" style="display: none;">Туалет</button>
+  </div>
+  <div id="map-container">
+    <object id="svg-object" data="" type="image/svg+xml"></object>
+  </div>
+
+  <script>
+    const facultySelect = document.getElementById('faculty-select');
+    const floorSelect = document.getElementById('floor-select');
+    const roomSelect = document.getElementById('room-select');
+    const svgObject = document.getElementById('svg-object');
+    const dinningButton = document.getElementById('dinning-button');
+    const deanButton = document.getElementById('dean-button');
+    const wardrobeButton = document.getElementById('wardrobe-button');
+    const toiletButton = document.getElementById('toilet-button');
+
+    const facultyFloors = {
+      "Mehmat": [1, 2, 3],
+      "Fvt": [1, 5]
+    };
+
+    const specialRoomIds = {
+        "room_dining": "Столовая",
+        "room_dean": "Деканат",
+        "room_wardrobe": "Гардеробная",
+        "toilet": "Туалет"
+    };
+
+    function populateFloorSelect(faculty) {
+      floorSelect.innerHTML = '';
+      const floors = facultyFloors[faculty];
+      if (floors) {
+        floors.forEach(floor => {
+          const option = document.createElement('option');
+          option.value = floor;
+          option.textContent = floor + ' этаж';
+          floorSelect.appendChild(option);
+        });
+      }
+    }
+
+    function loadSvg(faculty, floor) {
+      const svgUrl = `${faculty}/${faculty.toLowerCase()}_${floor}.svg`;
+      svgObject.data = svgUrl;
+      console.log(`Загрузка SVG: ${svgUrl}`);
+    }
+
+    function populateRoomSelect(svgDoc) {
+        roomSelect.innerHTML = ''; // Очищаем список комнат
+        const roomOptions = [];
+
+        // Добавляем аудитории с номерами (например, "Ауд. 101")
+        const roomsWithNumbers = Array.from(svgDoc.querySelectorAll('rect[id]'))
+            .filter(room => room.id.match(/_\d{3}$/)) // Фильтруем комнаты, заканчивающиеся на _XXX
+            .map(room => {
+                const roomNumber = room.id.split('_')[1]; // Извлекаем номер из id (например, "101")
+                return { id: room.id, name: `Ауд. ${roomNumber}` };
+            });
+
+        // Сортируем аудитории по возрастанию номера
+        roomsWithNumbers.sort((a, b) => parseInt(a.name.split('.')[1]) - parseInt(b.name.split('.')[1]));
+
+        roomOptions.push(...roomsWithNumbers);
+
+        // Добавляем "Столовая", "Деканат", "Гардеробная", "Туалет", если они есть
+        for (const roomId in specialRoomIds) {
+            if (svgDoc.getElementById(roomId)) {
+                roomOptions.push({ id: roomId, name: specialRoomIds[roomId] });
+            }
+        }
+
+        // Добавляем опции в выпадающий список
+        roomOptions.forEach(room => {
+            const option = document.createElement('option');
+            option.value = room.id;
+            option.textContent = room.name;
+            roomSelect.appendChild(option);
+        });
+    }
+
+    function updateButtonVisibility(svgDoc) {
+        dinningButton.style.display = svgDoc.getElementById("room_dining") ? "inline-block" : "none";
+        deanButton.style.display = svgDoc.getElementById("room_dean") ? "inline-block" : "none";
+        wardrobeButton.style.display = svgDoc.getElementById("room_wardrobe") ? "inline-block" : "none";
+        toiletButton.style.display = svgDoc.getElementById("toilet") ? "inline-block" : "none";
+    }
+
+    function initializeSvgInteraction() {
+        const svgDoc = svgObject.contentDocument;
+        if (!svgDoc) {
+            console.error('Не удалось получить доступ к содержимому SVG');
+            return;
+        }
+
+        //populateRoomSelect(svgDoc);
+        //updateButtonVisibility(svgDoc);
+
+        // Обработчики кликов на кнопки
+        dinningButton.addEventListener('click', () => highlightRoom("room_dining", svgDoc));
+        deanButton.addEventListener('click', () => highlightRoom("room_dean", svgDoc));
+        wardrobeButton.addEventListener('click', () => highlightRoom("room_wardrobe", svgDoc));
+        toiletButton.addEventListener('click', () => highlightRoom("toilet", svgDoc));
+
+
+        // Находим все элементы с id, начинающимися с "Ауд" (предполагая, что id аудиторий начинаются с "Ауд")
+        const rooms = svgDoc.querySelectorAll('rect[id]'); // select all elements whose id starts with "Ауд"
+
+        console.log("Найденные элементы с id:", rooms); // Проверка
+
+        rooms.forEach(room => {
+            room.addEventListener('click', function() {
+                const roomId = this.id;
+                highlightRoom(roomId, svgDoc);
+                console.log('Клик по аудитории!'); // Проверка
+                console.log('клик на ',roomId) // Проверка
+            });
+        });
+    }
+
+    function highlightRoom(roomId, svgDoc) {
+        console.log("проверка roomId", roomId) // Проверка
+        // Сначала убираем подсветку со всех аудиторий
+        const allRooms = svgDoc.querySelectorAll('rect[id]'); // select all elements whose id starts with "Ауд"
+        allRooms.forEach(r => {
+            r.setAttribute('fill', '#D8E4C2'); // Вернуть исходный цвет
+            r.setAttribute('stroke', '#899474');
+        });
+        //allRooms.forEach(r => r.classList.remove('highlight'));
+
+        // Затем подсвечиваем выбранную аудиторию
+        const room = svgDoc.getElementById(roomId);
+        console.log("проверка выбора элемента", room) // Проверка
+        if (room) {
+            room.setAttribute('fill', 'yellow');
+            room.setAttribute('stroke', 'red');
+            //room.classList.add('highlight');
+            console.log("Классы элемента после добавления highlight:", room.classList); // Проверка
+        } else {
+            console.warn(`Аудитория с id "${roomId}" не найдена в SVG.`);
+        }
+    }
+
+    // Обработчик изменения выбора факультета
+    facultySelect.addEventListener('change', () => {
+      const selectedFaculty = facultySelect.value;
+      populateFloorSelect(selectedFaculty);
+      floorSelect.value = 1; // Select the first floor by default
+      loadSvg(selectedFaculty, 1);
+    });
+
+    // Обработчик изменения выбора этажа
+    floorSelect.addEventListener('change', () => {
+        const selectedFaculty = facultySelect.value;
+        const selectedFloor = floorSelect.value;
+        loadSvg(selectedFaculty, selectedFloor);
+    });
+
+    // Обработчик изменения выбора комнаты
+    roomSelect.addEventListener('change', () => {
+        const selectedRoomId = roomSelect.value;
+        const svgDoc = svgObject.contentDocument;
+        if (svgDoc) {
+            highlightRoom(selectedRoomId, svgDoc);
+        }
+    });
+
+    // Ждем загрузки страницы
+    document.addEventListener('DOMContentLoaded', () => {
+      // Инициализация списка этажей для первого факультета (Мехмат)
+      populateFloorSelect(facultySelect.value);
+      loadSvg(facultySelect.value, 1); // Загрузка SVG по умолчанию (Мехмат, 1 этаж)
+
+      svgObject.addEventListener('load', function() {
+          initializeSvgInteraction();
+          const svgDoc = svgObject.contentDocument;
+          if (svgDoc){
+              populateRoomSelect(svgDoc);
+              updateButtonVisibility(svgDoc);
+          }
+      });
+    });
+  </script>
+</body>
+</html>
